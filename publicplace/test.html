@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset=utf-8>
+<meta name="viewport" content="width=620">
+<title>Test stream HTML5</title>
+
+<script>
+var numberOfChannels = 2;
+function decode(node)
+{
+    try
+    {
+        audioCtx.decodeAudioData(
+                                    node.buf,
+                                    function(decoded)
+                                    {
+                                        for (var i=0; i<numberOfChannels; i++)
+                                        {
+                                            var channel = node.source.buffer.getChannelData(i);
+                                            channel.set(decoded, node.cursor );
+                                        }
+
+                                        node.cursor += decoded.length;
+                                        if (!node.started)
+                                        {
+                                            node.source.start();
+                                            node.started = true;
+                                        }
+                                   }
+                                );
+    }
+    catch(e)
+    {
+        console.log('decode exception',e.message);
+    }
+}
+
+function onOpen(evt)
+{
+    console.log("CONNECTED");
+}
+
+function onClose(evt)
+{
+    console.log("DISCONNECTED");
+}
+
+function errorHandler(e)
+{
+  var msg = '';
+
+  switch (e.code) {
+    case FileError.QUOTA_EXCEEDED_ERR:
+      msg = 'QUOTA_EXCEEDED_ERR';
+      break;
+    case FileError.NOT_FOUND_ERR:
+      msg = 'NOT_FOUND_ERR';
+      break;
+    case FileError.SECURITY_ERR:
+      msg = 'SECURITY_ERR';
+      break;
+    case FileError.INVALID_MODIFICATION_ERR:
+      msg = 'INVALID_MODIFICATION_ERR';
+      break;
+    case FileError.INVALID_STATE_ERR:
+      msg = 'INVALID_STATE_ERR';
+      break;
+    default:
+      msg = 'Unknown Error';
+      break;
+  };
+
+  console.log('Error: ' + msg);
+}
+
+var ws = new WebSocket("ws://192.168.0.253:9090");
+ws.onopen = function(evt) {onOpen(evt)};
+ws.onclose = function(evt) { onClose(evt) };
+ws.onerror = function(evt) { errorHandler(evt) };
+ws.binaryType = 'arraybuffer';
+
+var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+node={};
+node.source  = audioCtx.createBufferSource();
+node.source.connect(audioCtx.destination);
+node.cursor = 0;
+node.started=false;
+
+// 9693654 is the size of the mp3 file: just a magic number used for the prototype :)
+node.source.buffer = audioCtx.createBuffer( numberOfChannels, 9693654, 44100);
+
+ws.onmessage = function (evt)
+               {
+                    node.buf=evt.data;
+                    decode(node);
+               };
+
+
+</script>
+<script src="fs.js"></script>
+
+</html>
